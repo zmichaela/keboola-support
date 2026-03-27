@@ -169,6 +169,7 @@ export async function aggregateTableHandler(req, res) {
     const groupBy = String(req.query.groupBy ?? "").trim();
     const metric = String(req.query.metric ?? "").trim();
     const op = String(req.query.op ?? "sum").trim().toLowerCase();
+    const order = String(req.query.order ?? "").trim().toLowerCase(); // value_desc | key_asc
     const limit = Math.max(1, Math.min(200, Number.parseInt(req.query.limit ?? "30", 10) || 30));
 
     if (!groupBy || !metric) {
@@ -208,7 +209,11 @@ export async function aggregateTableHandler(req, res) {
       const value = op === "avg" ? (v.count ? v.sum / v.count : null) : op === "sum" ? v.sum : v.count;
       return { key, value, rows: v.rows };
     });
-    data.sort((a, b) => (b.value ?? -Infinity) - (a.value ?? -Infinity));
+    if (order === "key_asc") {
+      data.sort((a, b) => String(a.key).localeCompare(String(b.key)));
+    } else {
+      data.sort((a, b) => (b.value ?? -Infinity) - (a.value ?? -Infinity));
+    }
 
     res.status(200).json({ ok: true, table: def, tablePath, groupBy, metric, op, data: data.slice(0, limit) });
   } catch (e) {

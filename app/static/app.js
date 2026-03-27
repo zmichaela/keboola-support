@@ -352,7 +352,10 @@ async function renderTablePage(key) {
   fillSelect(groupBySelect, groupByOptions, defaultGroupBy);
   fillSelect(metricSelect, metricOptions, defaultMetric);
 
-  const isTime = (schema.columns || []).some((c) => c.name === groupBySelect.value && c.type === "date");
+  const isTime =
+    key === "daily_trends" ||
+    key === "weekly_trends" ||
+    (schema.columns || []).some((c) => c.name === groupBySelect.value && c.type === "date");
   $("chartTitle").textContent = `${opSelect.value}(${metricSelect.value}) by ${groupBySelect.value}`;
 
   const load = async () => {
@@ -367,6 +370,7 @@ async function renderTablePage(key) {
         `?groupBy=${encodeURIComponent(groupBySelect.value)}` +
         `&metric=${encodeURIComponent(metricSelect.value)}` +
         `&op=${encodeURIComponent(opSelect.value)}` +
+        `&order=${encodeURIComponent(isTime ? "key_asc" : "value_desc")}` +
         `&limit=30`;
 
       const [aggRes, prevRes] = await Promise.all([
@@ -378,8 +382,8 @@ async function renderTablePage(key) {
       if (!prevRes?.ok) throw new Error(prevRes?.message || "Failed to load preview");
 
       renderAggTable(aggRes.data);
-      const labels = (aggRes.data || []).map((x) => x.key);
-      const values = (aggRes.data || []).map((x) => x.value);
+      const labels = (aggRes.data || []).map((x) => String(x.key ?? ""));
+      const values = (aggRes.data || []).map((x) => (typeof x.value === "number" ? x.value : null));
       await renderTableChart({ labels, values, isTime });
       renderPreview(prevRes.rows, "tablePreviewHead", "tablePreviewBody");
 

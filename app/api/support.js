@@ -4,6 +4,12 @@ import { parse } from "csv-parse/sync";
 
 const DEFAULT_TABLE_PATH = "/data/in/tables/client_sla_summary.csv";
 
+const cache = {
+  tablePath: null,
+  mtimeMs: null,
+  rows: null,
+};
+
 function normalizeKey(s) {
   return String(s ?? "")
     .trim()
@@ -203,8 +209,13 @@ function computeSummary(rows) {
 }
 
 async function readMappedCsv(filePath) {
+  const st = await fs.stat(filePath);
+  if (cache.rows && cache.tablePath === filePath && cache.mtimeMs === st.mtimeMs) {
+    return cache.rows;
+  }
+
   const csv = await fs.readFile(filePath, "utf8");
-  return parse(csv, {
+  const rows = parse(csv, {
     columns: true,
     skip_empty_lines: true,
     bom: true,
@@ -212,6 +223,11 @@ async function readMappedCsv(filePath) {
     relax_column_count: true,
     trim: true,
   });
+
+  cache.tablePath = filePath;
+  cache.mtimeMs = st.mtimeMs;
+  cache.rows = rows;
+  return rows;
 }
 
 export async function supportSummaryHandler(req, res) {

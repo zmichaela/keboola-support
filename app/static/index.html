@@ -4,7 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Support Performance</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+    <script defer src="/app.js"></script>
     <style>
       :root {
         color-scheme: light;
@@ -31,6 +32,27 @@
       }
 
       .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 48px; }
+
+      .nav {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+        margin: 8px 0 18px;
+      }
+      .nav a {
+        text-decoration: none;
+        color: rgba(229,231,235,0.85);
+        border: 1px solid var(--border);
+        background: rgba(255,255,255,0.06);
+        padding: 8px 12px;
+        border-radius: 999px;
+      }
+      .nav a.active {
+        border-color: rgba(124, 58, 237, 0.6);
+        background: rgba(124, 58, 237, 0.18);
+        color: rgba(255,255,255,0.95);
+      }
 
       .topbar {
         display: flex;
@@ -159,10 +181,21 @@
   </head>
   <body>
     <div class="wrap">
+      <nav class="nav">
+        <a href="#/overview" data-route="overview">Overview</a>
+        <a href="#/table/sla_compliance" data-route="table/sla_compliance">SLA compliance</a>
+        <a href="#/table/daily_trends" data-route="table/daily_trends">Daily trends</a>
+        <a href="#/table/weekly_trends" data-route="table/weekly_trends">Weekly trends</a>
+        <a href="#/table/client_performance" data-route="table/client_performance">Client performance</a>
+        <a href="#/table/agent_performance" data-route="table/agent_performance">Agent performance</a>
+        <a href="#/table/priority_severity_analysis" data-route="table/priority_severity_analysis">Priority & severity</a>
+        <a href="#/table/issues_enriched" data-route="table/issues_enriched">Issues</a>
+      </nav>
+
       <div class="topbar">
         <div class="title">
-          <h1>Support performance</h1>
-          <p>Powered by input mapping table <code>client_sla_summary</code></p>
+          <h1 id="pageTitle">Support performance</h1>
+          <p id="pageSubtitle">Powered by input mapping table <code>client_sla_summary</code></p>
         </div>
         <div class="controls">
           <select id="clientSelect">
@@ -173,7 +206,7 @@
         </div>
       </div>
 
-      <div class="grid">
+      <section id="page-overview" class="grid" data-page>
         <div class="card">
           <h3>Overall SLA</h3>
           <div class="metric" id="kpiSla">—</div>
@@ -224,201 +257,74 @@
             </table>
           </div>
         </div>
-      </div>
+      </section>
+
+      <section id="page-table" style="display:none;" data-page>
+        <div class="panel">
+          <h2 id="tableTitle">Table</h2>
+          <p style="margin: 0 0 10px; color: rgba(229,231,235,0.7); font-size: 12px;">
+            This tab reads from <code>/data/in/tables/*.csv</code> inside the container and builds a chart from selected columns.
+          </p>
+          <div style="display:flex; gap:10px; flex-wrap:wrap; margin: 8px 0 12px; align-items:center;">
+            <span style="color: rgba(229,231,235,0.7); font-size: 12px;">Group by</span>
+            <select id="groupBySelect" style="min-width: 260px;"></select>
+            <span style="color: rgba(229,231,235,0.7); font-size: 12px;">Metric</span>
+            <select id="metricSelect" style="min-width: 260px;"></select>
+            <select id="opSelect" style="min-width: 120px;">
+              <option value="sum">sum</option>
+              <option value="avg">avg</option>
+              <option value="count">count</option>
+            </select>
+            <button id="applyTableBtn" class="secondary">Apply</button>
+          </div>
+
+          <div class="grid" style="margin-top: 8px;">
+            <div class="panel span-7" style="min-height: 280px;">
+              <h2 id="chartTitle">Chart</h2>
+              <canvas id="tableChart" height="120"></canvas>
+            </div>
+            <div class="panel span-5">
+              <h2>Top groups</h2>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Group</th>
+                    <th>Value</th>
+                    <th>Rows</th>
+                  </tr>
+                </thead>
+                <tbody id="aggTable"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div style="overflow:auto;">
+            <table>
+              <thead id="tablePreviewHead"></thead>
+              <tbody id="tablePreviewBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-about" style="display:none;" data-page>
+        <div class="panel">
+          <h2>How pages map to tables</h2>
+          <div style="color: rgba(229,231,235,0.75); font-size: 13px; line-height: 1.55;">
+            <p style="margin: 0 0 10px;">
+              Add one page per table you want to visualize. Each page should call a dedicated API endpoint that reads
+              an input-mapped CSV from <code>/data/in/tables/...</code> (or <code>$KBC_DATADIR/in/tables/...</code>).
+            </p>
+            <p style="margin: 0;">
+              Edit backend logic in <code>app/api/</code> and mount routes in <code>app/server.js</code>. Edit UI pages in
+              <code>app/static/index.html</code> and behavior in <code>app/static/app.js</code>.
+            </p>
+          </div>
+        </div>
+      </section>
 
       <div class="error" id="errorBox"></div>
     </div>
-
-    <script>
-      const $ = (id) => document.getElementById(id);
-      const clientSelect = $("clientSelect");
-      const refreshBtn = $("refreshBtn");
-      const errorBox = $("errorBox");
-      const statusPill = $("statusPill");
-      const statusText = $("statusText");
-
-      let trendChart = null;
-
-      const fmtInt = (n) => (n === null || n === undefined ? "—" : new Intl.NumberFormat().format(n));
-      const fmtPct = (n) => (n === null || n === undefined ? "—" : `${n.toFixed(1)}%`);
-
-      function setStatus(kind, text) {
-        statusText.textContent = text;
-        statusPill.classList.remove("warn", "bad");
-        if (kind === "warn") statusPill.classList.add("warn");
-        if (kind === "bad") statusPill.classList.add("bad");
-      }
-
-      function showError(msg) {
-        errorBox.style.display = "block";
-        errorBox.textContent = msg;
-        setStatus("bad", "Error");
-      }
-
-      function clearError() {
-        errorBox.style.display = "none";
-        errorBox.textContent = "";
-      }
-
-      function renderClients(byClient) {
-        const tbody = $("clientsTable");
-        tbody.innerHTML = "";
-        for (const r of byClient || []) {
-          const tr = document.createElement("tr");
-          tr.innerHTML = `
-            <td>${escapeHtml(r.client)}</td>
-            <td>${fmtInt(r.tickets)}</td>
-            <td>${fmtInt(r.breaches)}</td>
-            <td>${fmtPct(r.slaPct)}</td>
-          `;
-          tbody.appendChild(tr);
-        }
-      }
-
-      function renderPreview(rows) {
-        const head = $("previewHead");
-        const body = $("previewBody");
-        head.innerHTML = "";
-        body.innerHTML = "";
-        if (!rows || !rows.length) return;
-
-        const cols = Object.keys(rows[0]);
-        const trh = document.createElement("tr");
-        for (const c of cols) {
-          const th = document.createElement("th");
-          th.textContent = c;
-          trh.appendChild(th);
-        }
-        head.appendChild(trh);
-
-        for (const r of rows) {
-          const tr = document.createElement("tr");
-          for (const c of cols) {
-            const td = document.createElement("td");
-            td.textContent = String(r[c] ?? "");
-            tr.appendChild(td);
-          }
-          body.appendChild(tr);
-        }
-      }
-
-      function renderTrend(trend) {
-        const labels = (trend || []).map((x) => x.day || "");
-        const data = (trend || []).map((x) => x.slaPct);
-        const breaches = (trend || []).map((x) => x.breaches);
-
-        const ctx = $("trendChart").getContext("2d");
-        trendChart?.destroy?.();
-        trendChart = new Chart(ctx, {
-          type: "line",
-          data: {
-            labels,
-            datasets: [
-              {
-                label: "SLA %",
-                data,
-                borderColor: "rgba(34,197,94,0.95)",
-                backgroundColor: "rgba(34,197,94,0.15)",
-                tension: 0.35,
-                fill: true,
-                pointRadius: 2,
-              },
-              {
-                label: "Breaches",
-                data: breaches,
-                borderColor: "rgba(239,68,68,0.85)",
-                backgroundColor: "rgba(239,68,68,0.10)",
-                tension: 0.35,
-                yAxisID: "y2",
-                pointRadius: 1,
-              },
-            ],
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: { labels: { color: "rgba(229,231,235,0.85)" } },
-              tooltip: { mode: "index", intersect: false },
-            },
-            interaction: { mode: "index", intersect: false },
-            scales: {
-              x: {
-                ticks: { color: "rgba(229,231,235,0.6)", maxRotation: 0, autoSkip: true },
-                grid: { color: "rgba(255,255,255,0.06)" },
-              },
-              y: {
-                ticks: { color: "rgba(229,231,235,0.6)", callback: (v) => `${v}%` },
-                grid: { color: "rgba(255,255,255,0.06)" },
-                suggestedMin: 0,
-                suggestedMax: 100,
-              },
-              y2: {
-                position: "right",
-                ticks: { color: "rgba(229,231,235,0.6)" },
-                grid: { drawOnChartArea: false },
-              },
-            },
-          },
-        });
-      }
-
-      function escapeHtml(s) {
-        return String(s ?? "")
-          .replaceAll("&", "&amp;")
-          .replaceAll("<", "&lt;")
-          .replaceAll(">", "&gt;")
-          .replaceAll('"', "&quot;")
-          .replaceAll("'", "&#039;");
-      }
-
-      function fillClientSelect(allClients, selected) {
-        const current = clientSelect.value;
-        clientSelect.innerHTML = `<option value="">All clients</option>`;
-        for (const c of allClients) {
-          const opt = document.createElement("option");
-          opt.value = c;
-          opt.textContent = c;
-          clientSelect.appendChild(opt);
-        }
-        clientSelect.value = selected ?? current ?? "";
-      }
-
-      async function load() {
-        clearError();
-        setStatus("warn", "Loading…");
-
-        const client = clientSelect.value;
-        const url = client ? `/api/support/summary?client=${encodeURIComponent(client)}` : "/api/support/summary";
-
-        const r = await fetch(url);
-        const data = await r.json().catch(() => null);
-        if (!r.ok || !data || !data.ok) {
-          showError(data?.message || `Failed to load ${url}`);
-          return;
-        }
-
-        $("kpiRows").textContent = fmtInt(data.kpis?.rows);
-        $("kpiTickets").textContent = fmtInt(Math.round(data.kpis?.totalTickets ?? 0));
-        $("kpiBreaches").textContent = fmtInt(Math.round(data.kpis?.totalBreaches ?? 0));
-        $("kpiSla").textContent = fmtPct(data.kpis?.overallSlaPct);
-        $("kpiSlaSub").textContent = data.clientFilter ? `Filtered by client: ${data.clientFilter}` : "All clients";
-
-        const allClients = (data.byClient || []).map((x) => x.client).filter(Boolean);
-        fillClientSelect(allClients, data.clientFilter || "");
-
-        renderClients(data.byClient);
-        renderTrend(data.trend);
-        renderPreview(data.preview);
-
-        setStatus("ok", "Live");
-      }
-
-      refreshBtn.addEventListener("click", load);
-      clientSelect.addEventListener("change", load);
-
-      load();
-    </script>
   </body>
 </html>
 

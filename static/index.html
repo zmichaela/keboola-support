@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Keboola Data App Starter</title>
+    <style>
+      :root { color-scheme: light; }
+      body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; margin: 32px; max-width: 920px; }
+      code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+      .row { display: flex; gap: 16px; flex-wrap: wrap; }
+      .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; min-width: 280px; }
+      button { border: 1px solid #111827; background: #111827; color: white; border-radius: 10px; padding: 10px 14px; cursor: pointer; }
+      button:disabled { opacity: 0.6; cursor: not-allowed; }
+      pre { background: #0b1020; color: #d1d5db; padding: 12px; border-radius: 12px; overflow: auto; }
+      a { color: #2563eb; }
+    </style>
+  </head>
+  <body>
+    <h1>Keboola Data App Starter (Node.js)</h1>
+    <p>
+      Routes:
+      <code>/</code>,
+      <code>/health</code>,
+      <code>/api/hello</code>,
+      <code>/api/stream</code> (SSE)
+    </p>
+
+    <div class="row">
+      <div class="card">
+        <h2>API hello</h2>
+        <button id="helloBtn">Call /api/hello</button>
+        <pre id="helloOut"></pre>
+      </div>
+
+      <div class="card">
+        <h2>SSE stream</h2>
+        <button id="streamBtn">Start stream</button>
+        <button id="stopBtn" disabled>Stop</button>
+        <pre id="streamOut"></pre>
+      </div>
+    </div>
+
+    <script>
+      const helloBtn = document.getElementById("helloBtn");
+      const helloOut = document.getElementById("helloOut");
+      const streamBtn = document.getElementById("streamBtn");
+      const stopBtn = document.getElementById("stopBtn");
+      const streamOut = document.getElementById("streamOut");
+
+      helloBtn.addEventListener("click", async () => {
+        helloOut.textContent = "Loading...";
+        const r = await fetch("/api/hello", { method: "POST" });
+        helloOut.textContent = JSON.stringify(await r.json(), null, 2);
+      });
+
+      let es = null;
+      streamBtn.addEventListener("click", () => {
+        streamOut.textContent = "";
+        streamBtn.disabled = true;
+        stopBtn.disabled = false;
+        es = new EventSource("/api/stream");
+        es.onmessage = (ev) => (streamOut.textContent += ev.data + "\n");
+        es.addEventListener("done", () => {
+          streamBtn.disabled = false;
+          stopBtn.disabled = true;
+          es?.close();
+          es = null;
+        });
+        es.onerror = () => {
+          streamBtn.disabled = false;
+          stopBtn.disabled = true;
+          es?.close();
+          es = null;
+          streamOut.textContent += "\n[stream error]\n";
+        };
+      });
+      stopBtn.addEventListener("click", () => {
+        streamBtn.disabled = false;
+        stopBtn.disabled = true;
+        es?.close();
+        es = null;
+      });
+    </script>
+  </body>
+</html>
+

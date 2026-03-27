@@ -17,6 +17,29 @@ const schemaCache = new Map(); // key -> schema response
 const fmtInt = (n) => (n === null || n === undefined ? "—" : new Intl.NumberFormat().format(n));
 const fmtPct = (n) => (n === null || n === undefined ? "—" : `${n.toFixed(1)}%`);
 
+function prettyName(name) {
+  const s = String(name ?? "").trim();
+  if (!s) return "";
+  const cleaned = s.replaceAll("_", " ").replaceAll(/\s+/g, " ").trim();
+  return cleaned
+    .split(" ")
+    .map((w) => {
+      const up = w.toUpperCase();
+      if (["SLA", "ID", "URL", "API"].includes(up)) return up;
+      if (/^\d+$/.test(w)) return w;
+      return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+    })
+    .join(" ");
+}
+
+function prettyOp(op) {
+  const o = String(op ?? "").toLowerCase();
+  if (o === "sum") return "Total";
+  if (o === "avg") return "Average";
+  if (o === "count") return "Count";
+  return prettyName(op);
+}
+
 function setStatus(kind, text) {
   statusText.textContent = text;
   statusPill.classList.remove("warn", "bad");
@@ -106,13 +129,24 @@ async function waitForChart() {
   return false;
 }
 
+function shortenLabel(s, max = 28) {
+  const str = String(s ?? "");
+  if (str.length <= max) return str;
+  return `${str.slice(0, Math.max(0, max - 1))}…`;
+}
+
 async function renderTrend(trend) {
+  const fb = $("trendFallback");
+  if (fb) fb.style.display = "flex";
   const ok = await waitForChart();
-  if (!ok) return;
+  if (!ok) {
+    if (fb) fb.textContent = "Chart unavailable (Chart.js did not load).";
+    return;
+  }
 
   const labels = (trend || []).map((x) => x.day || "");
   const data = (trend || []).map((x) => x.slaPct);
-  const breaches = (trend || []).map((x) => x.breaches);
+  const tickets = (trend || []).map((x) => x.tickets);
 
   const canvas = $("trendChart");
   if (!canvas) return;
@@ -127,20 +161,20 @@ async function renderTrend(trend) {
         {
           label: "SLA %",
           data,
-          borderColor: "rgba(34,197,94,0.95)",
-          backgroundColor: "rgba(34,197,94,0.15)",
+          borderColor: "rgba(59,130,246,0.95)",
+          backgroundColor: "rgba(59,130,246,0.16)",
           tension: 0.35,
           fill: true,
           pointRadius: 2,
         },
         {
-          label: "Breaches",
-          data: breaches,
-          borderColor: "rgba(239,68,68,0.85)",
-          backgroundColor: "rgba(239,68,68,0.10)",
-          tension: 0.35,
+          type: "bar",
+          label: "Tickets",
+          data: tickets,
+          borderColor: "rgba(29,78,216,0.85)",
+          backgroundColor: "rgba(29,78,216,0.22)",
           yAxisID: "y2",
-          pointRadius: 1,
+          borderRadius: 6,
         },
       ],
     },
@@ -154,7 +188,14 @@ async function renderTrend(trend) {
       interaction: { mode: "index", intersect: false },
       scales: {
         x: {
-          ticks: { color: "rgba(229,231,235,0.6)", maxRotation: 0, autoSkip: true },
+          ticks: {
+            color: "rgba(229,231,235,0.6)",
+            maxRotation: 0,
+            autoSkip: true,
+            callback: function (value) {
+              return shortenLabel(this.getLabelForValue(value), 18);
+            },
+          },
           grid: { color: "rgba(255,255,255,0.06)" },
         },
         y: {
@@ -171,6 +212,7 @@ async function renderTrend(trend) {
       },
     },
   });
+  if (fb) fb.style.display = "none";
 }
 
 async function fetchSummary() {
@@ -253,7 +295,7 @@ function fillSelect(el, values, preferred) {
   for (const v of values) {
     const opt = document.createElement("option");
     opt.value = v;
-    opt.textContent = v;
+    opt.textContent = prettyName(v);
     el.appendChild(opt);
   }
   if (preferred && values.includes(preferred)) el.value = preferred;
@@ -268,8 +310,13 @@ function pickDefault(values, hints) {
 }
 
 async function renderTableChart({ labels, values, isTime }) {
+  const fb = $("tableFallback");
+  if (fb) fb.style.display = "flex";
   const ok = await waitForChart();
-  if (!ok) return;
+  if (!ok) {
+    if (fb) fb.textContent = "Chart unavailable (Chart.js did not load).";
+    return;
+  }
   const canvas = $("tableChart");
   if (!canvas) return;
 
@@ -279,13 +326,13 @@ async function renderTableChart({ labels, values, isTime }) {
   tableChart = new window.Chart(ctx, {
     type: isTime ? "line" : "bar",
     data: {
-      labels,
+      labels: labels.map((l) => shortenLabel(prettyName(l), 24)),
       datasets: [
         {
           label: "Value",
           data: values,
-          borderColor: "rgba(124,58,237,0.95)",
-          backgroundColor: isTime ? "rgba(124,58,237,0.18)" : "rgba(124,58,237,0.30)",
+          borderColor: "rgba(59,130,246,0.95)",
+          backgroundColor: isTime ? "rgba(59,130,246,0.16)" : "rgba(59,130,246,0.26)",
           tension: 0.35,
           fill: isTime,
           borderRadius: isTime ? 0 : 10,
@@ -302,7 +349,14 @@ async function renderTableChart({ labels, values, isTime }) {
       interaction: { mode: "index", intersect: false },
       scales: {
         x: {
-          ticks: { color: "rgba(229,231,235,0.6)", maxRotation: 0, autoSkip: true },
+          ticks: {
+            color: "rgba(229,231,235,0.6)",
+            maxRotation: 0,
+            autoSkip: true,
+            callback: function (value) {
+              return shortenLabel(this.getLabelForValue(value), isTime ? 18 : 22);
+            },
+          },
           grid: { color: "rgba(255,255,255,0.06)" },
         },
         y: {
@@ -312,6 +366,7 @@ async function renderTableChart({ labels, values, isTime }) {
       },
     },
   });
+  if (fb) fb.style.display = "none";
 }
 
 function renderAggTable(data) {
@@ -356,14 +411,14 @@ async function renderTablePage(key) {
     key === "daily_trends" ||
     key === "weekly_trends" ||
     (schema.columns || []).some((c) => c.name === groupBySelect.value && c.type === "date");
-  $("chartTitle").textContent = `${opSelect.value}(${metricSelect.value}) by ${groupBySelect.value}`;
+  $("chartTitle").textContent = `${prettyOp(opSelect.value)} ${prettyName(metricSelect.value)} by ${prettyName(groupBySelect.value)}`;
 
   const load = async () => {
     try {
       clearError();
       setStatus("warn", "Loading…");
 
-      $("chartTitle").textContent = `${opSelect.value}(${metricSelect.value}) by ${groupBySelect.value}`;
+      $("chartTitle").textContent = `${prettyOp(opSelect.value)} ${prettyName(metricSelect.value)} by ${prettyName(groupBySelect.value)}`;
 
       const aggUrl =
         `/api/tables/${encodeURIComponent(key)}/aggregate` +

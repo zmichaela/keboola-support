@@ -10,6 +10,7 @@ const pageSubtitle = $("pageSubtitle");
 
 let trendChart = null;
 let tableChart = null;
+let overviewChart = null;
 let lastSummary = null;
 let tablesIndex = null;
 const schemaCache = new Map(); // key -> schema response
@@ -215,6 +216,95 @@ async function renderTrend(trend) {
   if (fb) fb.style.display = "none";
 }
 
+async function renderOverviewTrends() {
+  const fb = $("overviewFallback");
+  if (fb) fb.style.display = "flex";
+  const ok = await waitForChart();
+  if (!ok) {
+    if (fb) fb.textContent = "Chart unavailable (Chart.js did not load).";
+    return;
+  }
+
+  const r = await fetch("/api/overview/trends");
+  const data = await r.json().catch(() => null);
+  if (!r.ok || !data || !data.ok) {
+    if (fb) fb.textContent = data?.message || "Trend data unavailable.";
+    return;
+  }
+
+  const labels = (data.labels || []).map((x) => String(x ?? ""));
+  const slaPct = (data.slaPct || []).map((x) => (typeof x === "number" ? x : null));
+  const vol = (data.ticketVolume || []).map((x) => (typeof x === "number" ? x : null));
+
+  const canvas = $("overviewChart");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+
+  overviewChart?.destroy?.();
+  overviewChart = new window.Chart(ctx, {
+    data: {
+      labels,
+      datasets: [
+        {
+          type: "line",
+          label: "SLA %",
+          data: slaPct,
+          borderColor: "rgba(59,130,246,0.95)",
+          backgroundColor: "rgba(59,130,246,0.16)",
+          tension: 0.35,
+          fill: true,
+          pointRadius: 2,
+          yAxisID: "y",
+        },
+        {
+          type: "bar",
+          label: "Tickets",
+          data: vol,
+          borderColor: "rgba(29,78,216,0.85)",
+          backgroundColor: "rgba(29,78,216,0.22)",
+          borderRadius: 6,
+          yAxisID: "y2",
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: "rgba(229,231,235,0.85)" } },
+        tooltip: { mode: "index", intersect: false },
+      },
+      interaction: { mode: "index", intersect: false },
+      scales: {
+        x: {
+          ticks: {
+            color: "rgba(229,231,235,0.6)",
+            maxRotation: 0,
+            autoSkip: true,
+            callback: function (value) {
+              return shortenLabel(this.getLabelForValue(value), 18);
+            },
+          },
+          grid: { color: "rgba(255,255,255,0.06)" },
+        },
+        y: {
+          ticks: { color: "rgba(229,231,235,0.6)", callback: (v) => `${v}%` },
+          grid: { color: "rgba(255,255,255,0.06)" },
+          suggestedMin: 0,
+          suggestedMax: 100,
+        },
+        y2: {
+          position: "right",
+          ticks: { color: "rgba(229,231,235,0.6)" },
+          grid: { drawOnChartArea: false },
+        },
+      },
+    },
+  });
+
+  if (fb) fb.style.display = "none";
+}
+
 async function fetchSummary() {
   clearError();
   setStatus("warn", "Loading…");
@@ -248,8 +338,7 @@ async function renderSlaPage() {
   fillClientSelect(allClients, data.clientFilter || "");
 
   renderClients(data.byClient);
-  renderPreview(data.preview, "previewHead", "previewBody");
-  await renderTrend(data.trend);
+  await renderOverviewTrends();
 }
 
 async function fetchTablesIndex() {

@@ -9,6 +9,7 @@ import {
   previewTableHandler,
   schemaTableHandler,
 } from "./api/tables.js";
+import { overviewTrendsHandler } from "./api/overview.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -23,6 +24,7 @@ app.get("/health", (_req, res) => res.status(200).json({ status: "ok" }));
 
 // Support dashboard (Input Mapping table: client_sla_summary)
 app.get("/api/support/summary", supportSummaryHandler);
+app.get("/api/overview/trends", overviewTrendsHandler);
 
 // Generic access to input-mapped CSVs (multiple tables)
 app.get("/api/tables", listTablesHandler);

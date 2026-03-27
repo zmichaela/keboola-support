@@ -255,13 +255,11 @@
           <div class="sub">From <code>/data/in/tables/client_sla_summary.csv</code></div>
         </div>
 
-        <div class="panel span-7">
-          <h2>SLA trend (last 60 buckets)</h2>
-          <div class="chartBox">
-            <div class="chartFallback" id="trendFallback">
-              Chart is loading… If it never appears, Chart.js may be blocked; the rest of the dashboard still works.
-            </div>
-            <canvas id="trendChart"></canvas>
+        <div class="panel span-12">
+          <h2>SLA and ticket volume (last 60 buckets)</h2>
+          <div class="chartBox" style="height: 360px;">
+            <div class="chartFallback" id="overviewFallback">Chart is loading…</div>
+            <canvas id="overviewChart"></canvas>
           </div>
         </div>
 
@@ -278,16 +276,6 @@
             </thead>
             <tbody id="clientsTable"></tbody>
           </table>
-        </div>
-
-        <div class="panel span-12">
-          <h2>Data preview (first 25 rows)</h2>
-          <div style="overflow:auto;">
-            <table>
-              <thead id="previewHead"></thead>
-              <tbody id="previewBody"></tbody>
-            </table>
-          </div>
         </div>
       </section>
 

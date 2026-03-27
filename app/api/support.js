@@ -54,13 +54,37 @@ function detectColumns(rows) {
   };
 
   return {
-    client: resolve(["client", "client_name", "customer", "account", "organization", "org", "company"]),
+    client: resolve([
+      "client",
+      "client_name",
+      "customer",
+      "account",
+      "organization",
+      "organization_name",
+      "org",
+      "company",
+    ]),
     date: resolve(["date", "day", "created_date", "created_at", "month", "period", "timestamp"]),
     slaMet: resolve(["sla_met", "sla_ok", "met_sla", "sla_pass", "within_sla"]),
     breached: resolve(["sla_breached", "breached", "breach", "sla_fail", "outside_sla"]),
-    total: resolve(["total", "tickets", "ticket_count", "count", "requests"]),
-    breaches: resolve(["breaches", "breach_count", "sla_breach_count", "violations"]),
-    slaPct: resolve(["sla_pct", "sla_percent", "sla_percentage", "percent_sla", "pct_sla"]),
+    total: resolve(["total", "tickets", "ticket_count", "total_tickets", "count", "requests"]),
+    breaches: resolve([
+      "breaches",
+      "breach_count",
+      "sla_breach_count",
+      "violations",
+      "resolution_sla_breached_count",
+      "first_response_sla_breached_count",
+    ]),
+    slaPct: resolve([
+      "sla_pct",
+      "sla_percent",
+      "sla_percentage",
+      "percent_sla",
+      "pct_sla",
+      "resolution_sla_compliance_pct",
+      "first_response_sla_compliance_pct",
+    ]),
     resolutionHrs: resolve([
       "avg_resolution_hours",
       "avg_resolution_hrs",
@@ -111,6 +135,12 @@ function computeSummary(rows) {
   let slaPctSum = 0;
   let slaPctKnown = 0;
 
+  // Support for schemas that have separate first_response_* and resolution_* counts.
+  const hasFirstResponseBreached = rows.length && "first_response_sla_breached_count" in rows[0];
+  const hasResolutionBreached = rows.length && "resolution_sla_breached_count" in rows[0];
+  const hasFirstResponseMet = rows.length && "first_response_sla_met_count" in rows[0];
+  const hasResolutionMet = rows.length && "resolution_sla_met_count" in rows[0];
+
   for (const r of rows) {
     const t = totalFromRow(r);
     if (t !== null) {
@@ -120,16 +150,24 @@ function computeSummary(rows) {
       totalTickets += 1; // fallback: count rows as tickets
     }
 
-    const b = breachesFromRow(r);
-    if (b !== null) {
-      totalBreaches += b;
+    // Breaches
+    if (hasFirstResponseBreached || hasResolutionBreached) {
+      const frB = hasFirstResponseBreached ? asNumber(r.first_response_sla_breached_count) ?? 0 : 0;
+      const rsB = hasResolutionBreached ? asNumber(r.resolution_sla_breached_count) ?? 0 : 0;
+      totalBreaches += frB + rsB;
       breachesKnown += 1;
-    } else if (cols.breached) {
-      const breached = asBool(r[cols.breached]);
-      if (breached === true) totalBreaches += 1;
-    } else if (cols.slaMet) {
-      const met = asBool(r[cols.slaMet]);
-      if (met === false) totalBreaches += 1;
+    } else {
+      const b = breachesFromRow(r);
+      if (b !== null) {
+        totalBreaches += b;
+        breachesKnown += 1;
+      } else if (cols.breached) {
+        const breached = asBool(r[cols.breached]);
+        if (breached === true) totalBreaches += 1;
+      } else if (cols.slaMet) {
+        const met = asBool(r[cols.slaMet]);
+        if (met === false) totalBreaches += 1;
+      }
     }
 
     const p = slaPctFromRow(r);
@@ -139,12 +177,23 @@ function computeSummary(rows) {
     }
   }
 
-  const overallSlaPct =
-    slaPctKnown > 0
-      ? slaPctSum / slaPctKnown
-      : totalTickets > 0
-        ? ((totalTickets - totalBreaches) / totalTickets) * 100
-        : null;
+  const overallSlaPct = (() => {
+    if (slaPctKnown > 0) return slaPctSum / slaPctKnown;
+    if (hasFirstResponseMet || hasResolutionMet || hasFirstResponseBreached || hasResolutionBreached) {
+      // Weighted compliance based on met vs breached counts (if available).
+      let met = 0;
+      let breached = 0;
+      for (const r of rows) {
+        if (hasFirstResponseMet) met += asNumber(r.first_response_sla_met_count) ?? 0;
+        if (hasResolutionMet) met += asNumber(r.resolution_sla_met_count) ?? 0;
+        if (hasFirstResponseBreached) breached += asNumber(r.first_response_sla_breached_count) ?? 0;
+        if (hasResolutionBreached) breached += asNumber(r.resolution_sla_breached_count) ?? 0;
+      }
+      const denom = met + breached;
+      return denom ? (met / denom) * 100 : null;
+    }
+    return totalTickets > 0 ? ((totalTickets - totalBreaches) / totalTickets) * 100 : null;
+  })();
 
   // Client breakdown
   const byClient = [];

@@ -54,7 +54,15 @@ function extractSlaSeries(rows) {
   const byNorm = new Map(Object.keys(rows[0]).map((c) => [normalizeKey(c), c]));
 
   const dateColN = pickColumn(cols, ["day", "date", "created_date", "created_at", "period", "timestamp"]);
-  const pctColN = pickColumn(cols, ["sla_pct", "sla_percent", "sla_percentage", "percent_sla", "pct_sla"]);
+  const pctColN = pickColumn(cols, [
+    "sla_pct",
+    "sla_percent",
+    "sla_percentage",
+    "percent_sla",
+    "pct_sla",
+    "resolution_sla_compliance_pct",
+    "first_response_sla_compliance_pct",
+  ]);
   const ticketsColN = pickColumn(cols, ["tickets", "ticket_count", "count", "total", "requests"]);
   const breachesColN = pickColumn(cols, ["breaches", "breach_count", "sla_breach_count", "violations"]);
 
@@ -126,22 +134,22 @@ async function exists(p) {
 
 export async function overviewTrendsHandler(_req, res) {
   try {
-    const slaPath = path.join(baseDataDir(), "in", "tables", "client_sla_summary.csv");
     const dailyPath = path.join(baseDataDir(), "in", "tables", "daily_trends.csv");
     const weeklyPath = path.join(baseDataDir(), "in", "tables", "weekly_trends.csv");
 
     const volumePath = (await exists(dailyPath)) ? dailyPath : weeklyPath;
 
-    const [slaRows, volRows] = await Promise.all([readCsv(slaPath), readCsv(volumePath)]);
-    const slaMap = extractSlaSeries(slaRows);
-    const volMap = extractVolumeSeries(volRows);
+    // SLA trend should come from a time-bucketed table (daily/weekly). client_sla_summary is per-organization.
+    const trendRows = await readCsv(volumePath);
+    const slaMap = extractSlaSeries(trendRows);
+    const volMap = extractVolumeSeries(trendRows);
 
     const keys = [...new Set([...slaMap.keys(), ...volMap.keys()])].sort((a, b) => a.localeCompare(b));
     const last = keys.slice(-60);
 
     res.status(200).json({
       ok: true,
-      sources: { sla: "client_sla_summary.csv", volume: path.basename(volumePath) },
+      sources: { trend: path.basename(volumePath) },
       labels: last,
       slaPct: last.map((k) => slaMap.get(k)?.slaPct ?? null),
       ticketVolume: last.map((k) => volMap.get(k) ?? null),

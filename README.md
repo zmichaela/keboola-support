@@ -22,12 +22,11 @@ npm start
 
 Open:
 - `http://localhost:3000/`
-- `http://localhost:3000/api/hello`
-- `http://localhost:3000/api/stream` (SSE)
+- `http://localhost:3000/api/support/summary`
 
 ## Keboola specifics covered
 
 - Nginx listens on **8888** and proxies to the app on **3000**
 - `/` is handled with **ALL methods** (Keboola startup POST)
-- SSE endpoint (`/api/stream`) is configured with **Nginx buffering disabled**
+- Dashboard reads input-mapped table from `/data/in/tables/client_sla_summary.csv`
 

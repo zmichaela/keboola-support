@@ -2,10 +2,7 @@ import express from "express";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 
-import { helloHandler } from "./api/hello.js";
-import { bucketsHandler, configHandler, tableDetailHandler } from "./api/kbc.js";
 import { supportSummaryHandler } from "./api/support.js";
-import { streamHandler } from "./api/stream.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -17,14 +14,6 @@ const PORT = Number.parseInt(process.env.PORT ?? "3000", 10);
 const HOST = process.env.HOST ?? "0.0.0.0";
 
 app.get("/health", (_req, res) => res.status(200).json({ status: "ok" }));
-
-app.all("/api/hello", helloHandler);
-app.get("/api/stream", streamHandler);
-
-// Keboola Storage API examples (requires secrets KBC_URL + KBC_TOKEN)
-app.get("/api/kbc/config", configHandler);
-app.get("/api/kbc/buckets", bucketsHandler);
-app.get("/api/kbc/tables/:tableId", tableDetailHandler);
 
 // Support dashboard (Input Mapping table: client_sla_summary)
 app.get("/api/support/summary", supportSummaryHandler);

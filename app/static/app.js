@@ -14,8 +14,6 @@ let lastSummary = null;
 let tablesIndex = null;
 const schemaCache = new Map(); // key -> schema response
 const TABLE_ROUTES = {
-  "client-performance": "client_performance",
-  "agent-performance": "agent_performance",
   "priority-severity": "priority_severity_analysis",
 };
 
@@ -546,21 +544,26 @@ async function renderTablePage(key) {
     key === "daily_trends" ||
     key === "weekly_trends" ||
     (schema.columns || []).some((c) => c.name === groupBySelect.value && c.type === "date");
-  $("chartTitle").textContent = chartTitleText(opSelect.value, metricSelect.value, groupBySelect.value);
 
   const load = async () => {
     try {
       clearError();
       setStatus("warn", "Loading…");
 
-      $("chartTitle").textContent = chartTitleText(opSelect.value, metricSelect.value, groupBySelect.value);
-
       const aggUrl =
         `/api/tables/${encodeURIComponent(key)}/aggregate` +
         `?groupBy=${encodeURIComponent(groupBySelect.value)}` +
         `&metric=${encodeURIComponent(metricSelect.value)}` +
         `&op=${encodeURIComponent(opSelect.value)}` +
-        `&order=${encodeURIComponent(isTime ? "key_asc" : "value_desc")}` +
+        `&order=${encodeURIComponent(
+          isTime
+            ? "key_asc"
+            : String(metricSelect.value ?? "")
+                  .toLowerCase()
+                  .includes("pct")
+              ? "value_asc"
+              : "value_desc",
+        )}` +
         `&limit=30`;
 
       const [aggRes, prevRes] = await Promise.all([

@@ -211,8 +211,6 @@
       <nav class="nav">
         <a href="#/overview" data-route="overview">Overview</a>
         <a href="#/sla-performance" data-route="sla-performance">SLA performance</a>
-        <a href="#/client-performance" data-route="client-performance">Client performance</a>
-        <a href="#/agent-performance" data-route="agent-performance">Agent performance</a>
         <a href="#/priority-severity" data-route="priority-severity">Priority & severity</a>
       </nav>
 
@@ -336,9 +334,6 @@
       <section id="page-table" style="display:none;" data-page>
         <div class="panel">
           <h2 id="tableTitle">Performance details</h2>
-          <p style="margin: 0 0 10px; color: rgba(229,231,235,0.7); font-size: 12px;">
-            This tab reads from <code>/data/in/tables/*.csv</code> inside the container and builds a chart from selected columns.
-          </p>
           <div style="display:flex; gap:10px; flex-wrap:wrap; margin: 8px 0 12px; align-items:center;">
             <span style="color: rgba(229,231,235,0.7); font-size: 12px;">Group by</span>
             <select id="groupBySelect" style="min-width: 260px;"></select>

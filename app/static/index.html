@@ -210,13 +210,10 @@
     <div class="wrap">
       <nav class="nav">
         <a href="#/overview" data-route="overview">Overview</a>
-        <a href="#/table/sla_compliance" data-route="table/sla_compliance">SLA compliance</a>
-        <a href="#/table/daily_trends" data-route="table/daily_trends">Daily trends</a>
-        <a href="#/table/weekly_trends" data-route="table/weekly_trends">Weekly trends</a>
-        <a href="#/table/client_performance" data-route="table/client_performance">Client performance</a>
-        <a href="#/table/agent_performance" data-route="table/agent_performance">Agent performance</a>
-        <a href="#/table/priority_severity_analysis" data-route="table/priority_severity_analysis">Priority & severity</a>
-        <a href="#/table/issues_enriched" data-route="table/issues_enriched">Issues</a>
+        <a href="#/sla-performance" data-route="sla-performance">SLA performance</a>
+        <a href="#/client-performance" data-route="client-performance">Client performance</a>
+        <a href="#/agent-performance" data-route="agent-performance">Agent performance</a>
+        <a href="#/priority-severity" data-route="priority-severity">Priority & severity</a>
       </nav>
 
       <div class="topbar">
@@ -256,14 +253,6 @@
         </div>
 
         <div class="panel span-12">
-          <h2>SLA and ticket volume (last 60 buckets)</h2>
-          <div class="chartBox" style="height: 360px;">
-            <div class="chartFallback" id="overviewFallback">Chart is loading…</div>
-            <canvas id="overviewChart"></canvas>
-          </div>
-        </div>
-
-        <div class="panel span-5">
           <h2>Top clients by breaches</h2>
           <table>
             <thead>
@@ -279,9 +268,74 @@
         </div>
       </section>
 
+      <section id="page-sla-performance" style="display:none;" data-page>
+        <div class="panel">
+          <h2>SLA performance by organization</h2>
+          <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin: 10px 0 14px;">
+            <span style="color: rgba(229,231,235,0.7); font-size: 12px;">Support tier</span>
+            <select id="supportTierSelect" style="min-width: 260px;"></select>
+            <button id="slaPerfRefreshBtn" class="secondary">Refresh</button>
+          </div>
+
+          <div class="grid">
+            <div class="card">
+              <h3>Resolution SLA</h3>
+              <div class="metric" id="kpiResSla">—</div>
+              <div class="sub">Weighted by met vs breached</div>
+            </div>
+            <div class="card">
+              <h3>First response SLA</h3>
+              <div class="metric" id="kpiFrSla">—</div>
+              <div class="sub">Weighted by met vs breached</div>
+            </div>
+            <div class="card">
+              <h3>Total tickets</h3>
+              <div class="metric" id="kpiPerfTickets">—</div>
+              <div class="sub">Sum of total_tickets</div>
+            </div>
+            <div class="card">
+              <h3>Total breaches</h3>
+              <div class="metric" id="kpiPerfBreaches">—</div>
+              <div class="sub">First response + resolution</div>
+            </div>
+
+            <div class="panel span-7">
+              <h2>Top organizations by breaches</h2>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Organization</th>
+                    <th>Tier</th>
+                    <th>Tickets</th>
+                    <th>Breaches</th>
+                    <th>Resolution SLA</th>
+                  </tr>
+                </thead>
+                <tbody id="topBreachesTable"></tbody>
+              </table>
+            </div>
+
+            <div class="panel span-5">
+              <h2>Lowest resolution SLA</h2>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Organization</th>
+                    <th>Tier</th>
+                    <th>Resolution SLA</th>
+                    <th>Breaches</th>
+                  </tr>
+                </thead>
+                <tbody id="lowestResTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section id="page-table" style="display:none;" data-page>
         <div class="panel">
-          <h2 id="tableTitle">Table</h2>
+          <h2 id="tableTitle">Performance details</h2>
           <p style="margin: 0 0 10px; color: rgba(229,231,235,0.7); font-size: 12px;">
             This tab reads from <code>/data/in/tables/*.csv</code> inside the container and builds a chart from selected columns.
           </p>
@@ -307,11 +361,11 @@
               </div>
             </div>
             <div class="panel span-5">
-              <h2>Top groups</h2>
+              <h2>Top categories</h2>
               <table>
                 <thead>
                   <tr>
-                    <th>Group</th>
+                    <th>Category</th>
                     <th>Value</th>
                     <th>Rows</th>
                   </tr>

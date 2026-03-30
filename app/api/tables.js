@@ -26,9 +26,17 @@ function tablePathFor(def) {
 
 function toNumber(v) {
   if (v === null || v === undefined) return null;
-  const s = String(v).trim();
+  const s0 = String(v).trim();
+  if (!s0) return null;
+  // Common CSV patterns: "92.5%", "92,5 %", "1 234", "1,234.5"
+  const s = s0
+    .replaceAll("%", "")
+    .replaceAll(/\s+/g, "")
+    // If both comma and dot exist, assume comma is thousands separator.
+    .replaceAll(/,(?=\d{3}(\D|$))/g, "")
+    .replaceAll(",", ".");
   if (!s) return null;
-  const n = Number(s.replaceAll(",", "."));
+  const n = Number(s);
   return Number.isFinite(n) ? n : null;
 }
 
@@ -136,7 +144,14 @@ export async function schemaTableHandler(req, res) {
       return { name: col, type: inferType(values) };
     });
 
-    const numericColumns = schema.filter((c) => c.type === "number").map((c) => c.name);
+    const numericColumns = schema
+      .filter((c) => c.type === "number")
+      // IDs are numeric but not meaningful as chart metrics.
+      .filter((c) => {
+        const n = c.name.toLowerCase();
+        return !(n === "id" || n.endsWith("_id") || n === "issue_id" || n === "organization_id" || n === "agent_id");
+      })
+      .map((c) => c.name);
     const candidateDimensions = schema
       .filter((c) => c.type === "string" || c.type === "date" || c.type === "boolean")
       .map((c) => c.name);

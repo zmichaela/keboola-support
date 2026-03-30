@@ -10,6 +10,7 @@ import {
   schemaTableHandler,
 } from "./api/tables.js";
 import { overviewTrendsHandler } from "./api/overview.js";
+import { slaPerformanceHandler } from "./api/slaPerformance.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -25,6 +26,7 @@ app.get("/health", (_req, res) => res.status(200).json({ status: "ok" }));
 // Support dashboard (Input Mapping table: client_sla_summary)
 app.get("/api/support/summary", supportSummaryHandler);
 app.get("/api/overview/trends", overviewTrendsHandler);
+app.get("/api/sla/performance", slaPerformanceHandler);
 
 // Generic access to input-mapped CSVs (multiple tables)
 app.get("/api/tables", listTablesHandler);

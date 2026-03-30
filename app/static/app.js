@@ -10,10 +10,14 @@ const pageSubtitle = $("pageSubtitle");
 
 let trendChart = null;
 let tableChart = null;
-let overviewChart = null;
 let lastSummary = null;
 let tablesIndex = null;
 const schemaCache = new Map(); // key -> schema response
+const TABLE_ROUTES = {
+  "client-performance": "client_performance",
+  "agent-performance": "agent_performance",
+  "priority-severity": "priority_severity_analysis",
+};
 
 const fmtInt = (n) => (n === null || n === undefined ? "—" : new Intl.NumberFormat().format(n));
 const fmtPct = (n) => (n === null || n === undefined ? "—" : `${n.toFixed(1)}%`);
@@ -217,18 +221,10 @@ async function renderTrend(trend) {
 }
 
 async function renderOverviewTrends() {
-  const fb = $("overviewFallback");
-  if (fb) fb.style.display = "flex";
-  const ok = await waitForChart();
-  if (!ok) {
-    if (fb) fb.textContent = "Chart unavailable (Chart.js did not load).";
-    return;
-  }
-
   const r = await fetch("/api/overview/trends");
   const data = await r.json().catch(() => null);
   if (!r.ok || !data || !data.ok) {
-    if (fb) fb.textContent = data?.message || "Trend data unavailable.";
+    showError(data?.message || "Trend data unavailable.");
     return;
   }
 
@@ -236,73 +232,24 @@ async function renderOverviewTrends() {
   const slaPct = (data.slaPct || []).map((x) => (typeof x === "number" ? x : null));
   const vol = (data.ticketVolume || []).map((x) => (typeof x === "number" ? x : null));
 
-  const canvas = $("overviewChart");
-  if (!canvas) return;
-  const ctx = canvas.getContext("2d");
+  const slaBody = $("slaTrendTable");
+  const volBody = $("volumeTrendTable");
+  if (!slaBody || !volBody) return;
 
-  overviewChart?.destroy?.();
-  overviewChart = new window.Chart(ctx, {
-    data: {
-      labels,
-      datasets: [
-        {
-          type: "line",
-          label: "SLA %",
-          data: slaPct,
-          borderColor: "rgba(59,130,246,0.95)",
-          backgroundColor: "rgba(59,130,246,0.16)",
-          tension: 0.35,
-          fill: true,
-          pointRadius: 2,
-          yAxisID: "y",
-        },
-        {
-          type: "bar",
-          label: "Tickets",
-          data: vol,
-          borderColor: "rgba(29,78,216,0.85)",
-          backgroundColor: "rgba(29,78,216,0.22)",
-          borderRadius: 6,
-          yAxisID: "y2",
-        },
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { labels: { color: "rgba(229,231,235,0.85)" } },
-        tooltip: { mode: "index", intersect: false },
-      },
-      interaction: { mode: "index", intersect: false },
-      scales: {
-        x: {
-          ticks: {
-            color: "rgba(229,231,235,0.6)",
-            maxRotation: 0,
-            autoSkip: true,
-            callback: function (value) {
-              return shortenLabel(this.getLabelForValue(value), 18);
-            },
-          },
-          grid: { color: "rgba(255,255,255,0.06)" },
-        },
-        y: {
-          ticks: { color: "rgba(229,231,235,0.6)", callback: (v) => `${v}%` },
-          grid: { color: "rgba(255,255,255,0.06)" },
-          suggestedMin: 0,
-          suggestedMax: 100,
-        },
-        y2: {
-          position: "right",
-          ticks: { color: "rgba(229,231,235,0.6)" },
-          grid: { drawOnChartArea: false },
-        },
-      },
-    },
-  });
+  slaBody.innerHTML = "";
+  volBody.innerHTML = "";
 
-  if (fb) fb.style.display = "none";
+  for (let i = 0; i < labels.length; i += 1) {
+    const bucket = labels[i];
+
+    const tr1 = document.createElement("tr");
+    tr1.innerHTML = `<td>${escapeHtml(bucket)}</td><td>${fmtPct(slaPct[i])}</td>`;
+    slaBody.appendChild(tr1);
+
+    const tr2 = document.createElement("tr");
+    tr2.innerHTML = `<td>${escapeHtml(bucket)}</td><td>${fmtInt(vol[i])}</td>`;
+    volBody.appendChild(tr2);
+  }
 }
 
 async function fetchSummary() {
@@ -338,7 +285,6 @@ async function renderSlaPage() {
   fillClientSelect(allClients, data.clientFilter || "");
 
   renderClients(data.byClient);
-  await renderOverviewTrends();
 }
 
 async function fetchTablesIndex() {
@@ -367,6 +313,80 @@ function showPage(id) {
   const el = document.getElementById(id);
   if (!el) return;
   el.style.display = id === "page-overview" ? "" : "block";
+}
+
+function fillSupportTierSelect(selectEl, tiers, selected) {
+  selectEl.innerHTML = "";
+  const all = document.createElement("option");
+  all.value = "";
+  all.textContent = "All tiers";
+  selectEl.appendChild(all);
+  for (const t of tiers || []) {
+    const opt = document.createElement("option");
+    opt.value = t;
+    opt.textContent = t;
+    selectEl.appendChild(opt);
+  }
+  selectEl.value = selected ?? "";
+}
+
+async function renderSlaPerformancePage() {
+  clearError();
+  setStatus("warn", "Loading…");
+
+  const tierSelect = $("supportTierSelect");
+  const refresh = $("slaPerfRefreshBtn");
+  if (!tierSelect || !refresh) return;
+
+  const tier = String(tierSelect.value ?? "").trim();
+  const url = tier ? `/api/sla/performance?supportTier=${encodeURIComponent(tier)}` : "/api/sla/performance";
+
+  const r = await fetch(url);
+  const data = await r.json().catch(() => null);
+  if (!r.ok || !data || !data.ok) {
+    showError(data?.message || "Failed to load SLA performance.");
+    return;
+  }
+
+  fillSupportTierSelect(tierSelect, data.availableSupportTiers, data.supportTierFilter || "");
+
+  $("kpiResSla").textContent = fmtPct(data.overall?.resolutionSlaPct);
+  $("kpiFrSla").textContent = fmtPct(data.overall?.firstResponseSlaPct);
+  $("kpiPerfTickets").textContent = fmtInt(data.overall?.totalTickets);
+  $("kpiPerfBreaches").textContent = fmtInt(data.overall?.totalBreaches);
+
+  const topBody = $("topBreachesTable");
+  const lowBody = $("lowestResTable");
+  topBody.innerHTML = "";
+  lowBody.innerHTML = "";
+
+  for (const row of data.topBreaches || []) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${escapeHtml(row.organization)}</td>
+      <td>${escapeHtml(row.supportTier || "")}</td>
+      <td>${fmtInt(row.totalTickets)}</td>
+      <td>${fmtInt(row.totalBreaches)}</td>
+      <td>${fmtPct(row.resolutionSlaPct)}</td>
+    `;
+    topBody.appendChild(tr);
+  }
+
+  for (const row of data.lowestResolutionSla || []) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${escapeHtml(row.organization)}</td>
+      <td>${escapeHtml(row.supportTier || "")}</td>
+      <td>${fmtPct(row.resolutionSlaPct)}</td>
+      <td>${fmtInt(row.resolutionBreaches)}</td>
+    `;
+    lowBody.appendChild(tr);
+  }
+
+  refresh.onclick = renderSlaPerformancePage;
+  tierSelect.onchange = renderSlaPerformancePage;
+
+  setStatus("ok", "Live");
 }
 
 async function getSchema(key) {
@@ -398,7 +418,20 @@ function pickDefault(values, hints) {
   return values[0] ?? "";
 }
 
-async function renderTableChart({ labels, values, isTime }) {
+const TABLE_DEFAULTS = {
+  issues_enriched: { groupBy: "priority_name", metric: "issue_id", op: "count" },
+  sla_compliance: { groupBy: "organization_name", metric: "resolution_sla_pct", op: "avg" },
+  client_performance: { groupBy: "organization_name", metric: "resolution_rate_pct", op: "avg" },
+  agent_performance: { groupBy: "agent_name", metric: "resolution_rate_pct", op: "avg" },
+  priority_severity_analysis: { groupBy: "severity_level", metric: "resolution_rate_pct", op: "avg" },
+};
+
+function chartTitleText(op, metric, groupBy) {
+  if (String(op).toLowerCase() === "count") return `Issue count by ${prettyName(groupBy)}`;
+  return `${prettyOp(op)} ${prettyName(metric)} by ${prettyName(groupBy)}`;
+}
+
+async function renderTableChart({ labels, values, isTime, metric }) {
   const fb = $("tableFallback");
   if (fb) fb.style.display = "flex";
   const ok = await waitForChart();
@@ -411,6 +444,8 @@ async function renderTableChart({ labels, values, isTime }) {
 
   const ctx = canvas.getContext("2d");
   tableChart?.destroy?.();
+
+  const isPctMetric = String(metric ?? "").toLowerCase().includes("pct");
 
   tableChart = new window.Chart(ctx, {
     type: isTime ? "line" : "bar",
@@ -449,7 +484,10 @@ async function renderTableChart({ labels, values, isTime }) {
           grid: { color: "rgba(255,255,255,0.06)" },
         },
         y: {
-          ticks: { color: "rgba(229,231,235,0.6)" },
+          ticks: {
+            color: "rgba(229,231,235,0.6)",
+            callback: isPctMetric ? (v) => `${v}%` : undefined,
+          },
           grid: { color: "rgba(255,255,255,0.06)" },
         },
       },
@@ -490,24 +528,32 @@ async function renderTablePage(key) {
   const opSelect = $("opSelect");
   const applyBtn = $("applyTableBtn");
 
-  const defaultGroupBy = pickDefault(groupByOptions, ["date", "day", "week", "month", "client", "agent", "priority", "severity"]);
-  const defaultMetric = pickDefault(metricOptions, ["breaches", "breach_count", "tickets", "ticket_count", "count", "sla_pct", "sla_percent"]);
+  const presets = TABLE_DEFAULTS[key] ?? {};
+  const defaultGroupBy = pickDefault(
+    groupByOptions,
+    [presets.groupBy, "organization_name", "client", "agent_name", "priority_name", "severity_level", "status_name", "date", "day", "week"].filter(Boolean),
+  );
+  const defaultMetric = pickDefault(
+    metricOptions,
+    [presets.metric, "resolution_rate_pct", "resolution_sla_pct", "first_response_sla_pct", "total_tickets", "open_tickets", "avg_hours_to_resolution", "count"].filter(Boolean),
+  );
 
   fillSelect(groupBySelect, groupByOptions, defaultGroupBy);
   fillSelect(metricSelect, metricOptions, defaultMetric);
+  if (presets.op && ["sum", "avg", "count"].includes(presets.op)) opSelect.value = presets.op;
 
   const isTime =
     key === "daily_trends" ||
     key === "weekly_trends" ||
     (schema.columns || []).some((c) => c.name === groupBySelect.value && c.type === "date");
-  $("chartTitle").textContent = `${prettyOp(opSelect.value)} ${prettyName(metricSelect.value)} by ${prettyName(groupBySelect.value)}`;
+  $("chartTitle").textContent = chartTitleText(opSelect.value, metricSelect.value, groupBySelect.value);
 
   const load = async () => {
     try {
       clearError();
       setStatus("warn", "Loading…");
 
-      $("chartTitle").textContent = `${prettyOp(opSelect.value)} ${prettyName(metricSelect.value)} by ${prettyName(groupBySelect.value)}`;
+      $("chartTitle").textContent = chartTitleText(opSelect.value, metricSelect.value, groupBySelect.value);
 
       const aggUrl =
         `/api/tables/${encodeURIComponent(key)}/aggregate` +
@@ -528,7 +574,7 @@ async function renderTablePage(key) {
       renderAggTable(aggRes.data);
       const labels = (aggRes.data || []).map((x) => String(x.key ?? ""));
       const values = (aggRes.data || []).map((x) => (typeof x.value === "number" ? x.value : null));
-      await renderTableChart({ labels, values, isTime });
+      await renderTableChart({ labels, values, isTime, metric: metricSelect.value });
       renderPreview(prevRes.rows, "tablePreviewHead", "tablePreviewBody");
 
       setStatus("ok", "Live");
@@ -544,6 +590,16 @@ async function renderTablePage(key) {
 async function renderRoute() {
   const { parts } = parseRoute();
   const top = (parts[0] ?? "overview").toLowerCase();
+  const mappedTableKey = TABLE_ROUTES[top];
+
+  if (mappedTableKey) {
+    setActiveNav(top);
+    showPage("page-table");
+    pageTitle.textContent = "Client servicing health";
+    pageSubtitle.textContent = "Focused operational view from input-mapped support tables.";
+    await renderTablePage(mappedTableKey);
+    return;
+  }
 
   if (top === "table") {
     const key = parts[1] ?? "";
@@ -560,9 +616,17 @@ async function renderRoute() {
 
   if (top === "overview") {
     showPage("page-overview");
-    pageTitle.textContent = "Support performance";
-    pageSubtitle.innerHTML = `Powered by input mapping table <code>client_sla_summary</code>`;
+    pageTitle.textContent = "Client servicing health";
+    pageSubtitle.innerHTML = `Executive overview powered by <code>client_sla_summary</code>`;
     await renderSlaPage();
+    return;
+  }
+
+  if (top === "sla-performance") {
+    showPage("page-sla-performance");
+    pageTitle.textContent = "SLA performance";
+    pageSubtitle.innerHTML = `Organization and tier-level SLA outcomes from <code>client_sla_summary</code>`;
+    await renderSlaPerformancePage();
     return;
   }
 
